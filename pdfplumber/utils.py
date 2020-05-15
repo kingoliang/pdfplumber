@@ -7,8 +7,8 @@ from operator import itemgetter
 import itertools
 from functools import lru_cache as cache
 
-DEFAULT_X_TOLERANCE = 3
-DEFAULT_Y_TOLERANCE = 3
+DEFAULT_X_TOLERANCE = 1
+DEFAULT_Y_TOLERANCE = 1
 
 def cluster_list(xs, tolerance=0):
     tolerance = decimalize(tolerance)
@@ -45,8 +45,8 @@ def cluster_objects(objs, attr, tolerance):
         attr_getter = attr
     objs = to_list(objs)
     values = map(attr_getter, objs)
-    cluster_dict = make_cluster_dict(values, tolerance)
 
+    cluster_dict = make_cluster_dict(values, tolerance)
     get_0, get_1 = itemgetter(0), itemgetter(1)
 
     cluster_tuples = sorted(((obj, cluster_dict.get(attr_getter(obj)))
@@ -141,10 +141,16 @@ def collate_line(line_chars, tolerance=DEFAULT_X_TOLERANCE):
     tolerance = decimalize(tolerance)
     coll = ""
     last_x1 = None
+    last_x0 = None
     for char in sorted(line_chars, key=itemgetter("x0")):
+        #print("char = " ,char)
         if (last_x1 != None) and (char["x0"] > (last_x1 + tolerance)):
             coll += " "
+        #如果两个字离的太近，则忽略后面的字
+        if (last_x0 != None) and abs(char["x0"] - last_x0) < tolerance:
+            continue
         last_x1 = char["x1"]
+        last_x0 = char["x0"]
         coll += char["text"]
     return coll
 
@@ -220,7 +226,25 @@ def extract_words(chars,
         words = []
         current_word = []
 
+        last_x0 = None
+        last_char = None
+        chars_filted = []
+
         for char in chars_sorted:
+            ignored = False
+            if (last_x0 != None) and abs(char["x0"] - last_x0) < tolerance:
+                #print(tolerance,abs(char["x0"] - last_x0),char["x0"],last_x0)
+                #print("last_char = ", last_char)
+                # last_char = char
+                # last_x0 = char["x0"]
+                ignored = True
+            last_char = char
+            last_x0 = char["x0"]
+            if not ignored:
+                chars_filted.append(char)
+
+        for char in chars_filted:
+            
             if not keep_blank_chars and get_text(char).isspace():
                 if len(current_word) > 0:
                     words.append(current_word)
@@ -261,7 +285,6 @@ def extract_words(chars,
 def extract_text(chars,
     x_tolerance=DEFAULT_X_TOLERANCE,
     y_tolerance=DEFAULT_Y_TOLERANCE):
-
     if len(chars) == 0:
         return None
 
@@ -272,6 +295,7 @@ def extract_text(chars,
         for line_chars in doctop_clusters)
 
     coll = "\n".join(lines)
+
     return coll
 
 collate_chars = extract_text
